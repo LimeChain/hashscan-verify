@@ -1,0 +1,40 @@
+{
+  "name": "hardhat-hashscan-verify",
+  "version": "0.1.0",
+  "description": "Hedera-first wrapper for @nomicfoundation/hardhat-verify that targets HashScan's Sourcify verifier",
+  "license": "MIT",
+  "author": "LimeChain",
+  "repository": "https://github.com/LimeChain/hardhat-hashscan-verify",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@nomicfoundation/hardhat-verify": "^3.0.0",
+    "hardhat": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "hardhat": "^3.0.6",
+    "typescript": "5.9.2"
+  },
+  "keywords": [
+    "hardhat",
+    "verify",
+    "hedera",
+    "hashscan",
+    "sourcify"
+  ]
+}
