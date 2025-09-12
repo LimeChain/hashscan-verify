@@ -1,0 +1,1 @@
+# hardhat-hashscan-verify
