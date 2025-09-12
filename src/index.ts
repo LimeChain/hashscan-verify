@@ -73,7 +73,6 @@ const hashscanVerifyTask = task(
     },
   }));
 
-// Hooks to extend and resolve config in Hardhat v3
 async function extendUserConfig(
   config: HardhatUserConfig,
   next: (nextConfig: HardhatUserConfig) => Promise<HardhatUserConfig>,
@@ -83,12 +82,21 @@ async function extendUserConfig(
   const userVerify: any = (nextConfig as any).verify ?? {};
   const userSourcify: any = userVerify.sourcify ?? {};
 
+  const hardhatNetwork = process.env.HARDHAT_NETWORK ?? "";
+  const explicitBrowserUrl = process.env.HASHSCAN_BROWSER_URL;
+  const explicitApiUrl = process.env.HASHSCAN_API_URL ?? process.env.SOURCIFY_API_URL;
+  const isLocalNetwork = /^(localhost|hedera_local|local)$/i.test(hardhatNetwork);
+  const computedBrowserUrl =
+    explicitBrowserUrl ?? (isLocalNetwork ? "http://localhost:8080" : "https://hashscan.io");
+  const computedApiUrl =
+    explicitApiUrl ?? (isLocalNetwork ? "http://localhost:8080" : "https://server-verify.hashscan.io");
+
   const mergedVerify: any = {
     ...(nextConfig as any).verify,
     sourcify: {
       enabled: userSourcify.enabled ?? true,
-      apiUrl: userSourcify.apiUrl ?? "https://server-verify.hashscan.io",
-      browserUrl: userSourcify.browserUrl ?? "https://hashscan.io",
+      apiUrl: userSourcify.apiUrl ?? computedApiUrl,
+      browserUrl: userSourcify.browserUrl ?? computedBrowserUrl,
     },
   };
 
@@ -108,7 +116,7 @@ async function resolveUserConfig(
 ): Promise<HardhatConfig> {
   const resolved = await next(userConfig, resolveConfigurationVariable);
 
-  // Convenience: if user defined Hedera networks without chainIds, set them.
+  // Convenience: if user defined Hedera networks without chainIds, we set them.
   const nets: Record<string, any> = (resolved as any).networks ?? {};
   const maybeTag = (n: string, id: number) => {
     if (nets[n] && nets[n].chainId == null) nets[n].chainId = id;
