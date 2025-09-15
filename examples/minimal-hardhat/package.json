@@ -5,14 +5,13 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "deploy": "hardhat run scripts/deploy.ts --network hedera_testnet",
-    "verify": "hardhat hashscan-verify --network hedera_testnet --address 0x7A0505Eb4af57Eefb9B69619DB3bfc26348DE73A --contract contracts/Counter.sol:Counter"
+    "deploy": "hardhat run scripts/deploy.ts --network testnet",
+    "verify": "hardhat hashscan-verify 0x7A0505Eb4af57Eefb9B69619DB3bfc26348DE73A --contract contracts/Counter.sol:Counter --network testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.1",
     "@nomicfoundation/hardhat-ignition-ethers": "^3.0.3",
     "@nomicfoundation/hardhat-ignition-viem": "^3.0.3",
-    "@nomicfoundation/hardhat-verify": "^3.0.0",
     "hardhat-hashscan-verify": "file:../..",
     "hardhat": "^3.0.0",
     "ts-node": "^10.9.2",

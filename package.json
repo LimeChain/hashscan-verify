@@ -1,7 +1,7 @@
 {
   "name": "hardhat-hashscan-verify",
   "version": "0.1.0",
-  "description": "Hedera-first wrapper for @nomicfoundation/hardhat-verify that targets HashScan's Sourcify verifier",
+  "description": "Hardhat plugin for verifying smart contracts on HashScan (Hedera's contract verification service)",
   "license": "MIT",
   "author": "LimeChain",
   "repository": "https://github.com/LimeChain/hardhat-hashscan-verify",
@@ -22,7 +22,6 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "@nomicfoundation/hardhat-verify": "^3.0.0",
     "hardhat": "^3.0.0"
   },
   "devDependencies": {

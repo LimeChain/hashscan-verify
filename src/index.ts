@@ -14,7 +14,7 @@ import https from "https";
 import { URL } from "url";
 
 // Helper function to make HTTPS request
-function httpsRequest(url: string, options: any, data: string): Promise<any> {
+function httpsRequest(url: string, options: any, data?: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const req = https.request(url, options, (res) => {
       let responseData = '';
@@ -31,33 +31,99 @@ function httpsRequest(url: string, options: any, data: string): Promise<any> {
     });
     
     req.on('error', reject);
-    req.write(data);
+    if (data) {
+      req.write(data);
+    }
     req.end();
   });
+}
+
+// Function to check if contract is already verified
+async function checkIfVerified(
+  address: string,
+  chainId: string,
+  apiUrl: string
+): Promise<{ isVerified: boolean; status?: string }> {
+  try {
+    const parsedUrl = new URL(`${apiUrl}/check-all-by-addresses`);
+    parsedUrl.searchParams.append('addresses', address.toLowerCase());
+    parsedUrl.searchParams.append('chainIds', chainId);
+    
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 443,
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    };
+    
+    const response = await httpsRequest(parsedUrl.href, options);
+    
+    if (Array.isArray(response) && response.length > 0) {
+      const result = response[0];
+      if (result.chainIds && Array.isArray(result.chainIds)) {
+        const chainResult = result.chainIds.find((c: any) => c.chainId === chainId);
+        if (chainResult) {
+          return {
+            isVerified: true,
+            status: chainResult.status
+          };
+        }
+      }
+    }
+    
+    return { isVerified: false };
+  } catch (error) {
+    // If check fails, proceed with verification anyway
+    return { isVerified: false };
+  }
 }
 
 // Function to directly verify on Sourcify
 async function verifySourcify(
   address: string,
   chainId: string,
+  contractPath: string,
   contractName: string,
   hre: HardhatRuntimeEnvironment
 ): Promise<{ status: string; message?: string }> {
   try {
-    // Get the contract artifact path
-    const artifactPath = join(
-      hre.config.paths.artifacts,
-      "contracts",
-      `${contractName}.sol`,
-      `${contractName}.json`
-    );
+    // Normalize contract path (remove 'contracts/' prefix if present)
+    const normalizedPath = contractPath.replace(/^contracts\//, '');
+    
+    // Try to find the artifact
+    const possiblePaths = [
+      join(hre.config.paths.artifacts, contractPath, `${contractName}.json`),
+      join(hre.config.paths.artifacts, "contracts", normalizedPath, `${contractName}.json`),
+      join(hre.config.paths.artifacts, normalizedPath, `${contractName}.json`)
+    ];
+    
+    let artifactPath: string | undefined;
+    for (const path of possiblePaths) {
+      if (existsSync(path)) {
+        artifactPath = path;
+        break;
+      }
+    }
 
-    if (!existsSync(artifactPath)) {
-      throw new Error(`Artifact not found: ${artifactPath}`);
+    if (!artifactPath) {
+      throw new Error(
+        `Could not find artifact for ${contractName}. ` +
+        `Make sure the contract is compiled and the contract path is correct.`
+      );
     }
 
     // Read the artifact
     const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
+    
+    if (!artifact.buildInfoId) {
+      throw new Error(
+        `Build info ID not found in artifact. ` +
+        `Please recompile your contracts with 'npx hardhat compile --force'.`
+      );
+    }
     
     // Get the build info
     const buildInfoPath = join(
@@ -67,16 +133,32 @@ async function verifySourcify(
     );
 
     if (!existsSync(buildInfoPath)) {
-      throw new Error(`Build info not found: ${buildInfoPath}`);
+      throw new Error(
+        `Build info not found. ` +
+        `Please recompile your contracts with 'npx hardhat compile --force'.`
+      );
     }
 
     // Read the build info
     const buildInfo = JSON.parse(readFileSync(buildInfoPath, 'utf8'));
-    const contractPath = `project/contracts/${contractName}.sol`;
-    const contractData = buildInfo.output.contracts[contractPath]?.[contractName];
     
-    if (!contractData) {
-      throw new Error(`Contract ${contractName} not found in build info`);
+    // Find the contract in build info
+    let contractData: any;
+    let foundPath: string | undefined;
+    
+    for (const [path, contracts] of Object.entries(buildInfo.output.contracts)) {
+      if (contracts && typeof contracts === 'object' && contractName in contracts) {
+        contractData = (contracts as any)[contractName];
+        foundPath = path;
+        break;
+      }
+    }
+    
+    if (!contractData || !contractData.metadata) {
+      throw new Error(
+        `Contract ${contractName} not found in build output. ` +
+        `Make sure the contract name matches exactly.`
+      );
     }
 
     // Prepare the files for verification
@@ -117,12 +199,8 @@ async function verifySourcify(
         'Content-Length': Buffer.byteLength(jsonData)
       }
     };
-
-    console.log(`[hardhat-hashscan-verify] Calling Sourcify API at ${apiUrl}/verify`);
     
     const response = await httpsRequest(parsedUrl.href, options, jsonData);
-    
-    console.log("[hardhat-hashscan-verify] Sourcify response:", JSON.stringify(response, null, 2));
     
     if (response.result && response.result.length > 0) {
       const result = response.result[0];
@@ -141,21 +219,20 @@ async function verifySourcify(
     
     return {
       status: "error",
-      message: "Unknown response from Sourcify"
+      message: "Unexpected response format from verification service"
     };
     
   } catch (error: any) {
-    console.error("[hardhat-hashscan-verify] Error calling Sourcify:", error);
     return {
       status: "error",
-      message: error.message
+      message: error.message || "Unknown error occurred during verification"
     };
   }
 }
 
 const hashscanVerifyTask = task(
   "hashscan-verify",
-  "Verify on HashScan (Sourcify) and print the explorer link",
+  "Verify contract on HashScan/Sourcify",
 )
   .addPositionalArgument({
     name: "address",
@@ -163,12 +240,13 @@ const hashscanVerifyTask = task(
   })
   .addOption({
     name: "contract",
-    description: "Fully qualified name: path/Contract.sol:ContractName",
+    description: "Fully qualified contract name (e.g., contracts/Counter.sol:Counter)",
     defaultValue: "",
   })
   .addVariadicArgument({
     name: "constructorArgs",
-    description: "Constructor arguments",
+    description: "Constructor arguments (if any)",
+    defaultValue: [],
   })
   .setAction(async () => ({
     default: async (
@@ -177,39 +255,67 @@ const hashscanVerifyTask = task(
     ) => {
       const { address, contract, constructorArgs = [] } = args;
 
-      console.log(
-        "[hardhat-hashscan-verify] Using direct Sourcify API verification",
-      );
-
-      // Extract contract name from the contract parameter (e.g., "contracts/Counter.sol:Counter")
-      let contractName = "Counter"; // default
-      if (contract) {
-        const parts = contract.split(":");
-        if (parts.length === 2) {
-          contractName = parts[1];
-        }
+      // Validate address format
+      if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        console.error("Error: Invalid contract address format. Expected format: 0x followed by 40 hexadecimal characters.");
+        return;
       }
+
+      // Extract contract path and name from the contract parameter
+      let contractPath = "";
+      let contractName = "";
+      
+      if (!contract) {
+        console.error("Error: Contract parameter is required. Format: path/to/Contract.sol:ContractName");
+        return;
+      }
+      
+      const parts = contract.split(":");
+      if (parts.length !== 2) {
+        console.error("Error: Invalid contract format. Expected format: path/to/Contract.sol:ContractName");
+        return;
+      }
+      
+      const [fullPath, name] = parts;
+      contractPath = fullPath.replace(/\.sol$/, '');
+      contractName = name;
 
       // Get chain ID
       const connection = await (hre as any).network?.connect();
       const chainId = connection?.networkConfig?.chainId;
       
       if (!chainId) {
-        console.error("[hardhat-hashscan-verify] Could not determine chain ID");
+        console.error("Error: Could not determine chain ID. Make sure you're using the --network flag.");
         return;
       }
-
-      console.log(`[hardhat-hashscan-verify] Verifying ${contractName} at ${address} on chain ${chainId}`);
       
-      // Call Sourcify directly
-      const result = await verifySourcify(address, chainId.toString(), contractName, hre);
+      // Get Sourcify API URL
+      const apiUrl = (hre.config as any).sourcify?.apiUrl || "https://server-verify.hashscan.io";
       
-      if (result.status === "perfect") {
-        console.log("[hardhat-hashscan-verify] ✓ Contract verified successfully (perfect match)");
-      } else if (result.status === "partial") {
-        console.log("[hardhat-hashscan-verify] ✓ Contract verified successfully (partial match)");
+      // Check if already verified
+      const verificationCheck = await checkIfVerified(address, chainId.toString(), apiUrl);
+      
+      if (verificationCheck.isVerified) {
+        console.log(`Contract is already verified with ${verificationCheck.status} match.`);
       } else {
-        console.log(`[hardhat-hashscan-verify] ✗ Verification failed: ${result.message || result.status}`);
+        console.log(`Verifying ${contractName} at ${address}...`);
+        
+        // Call Sourcify directly
+        const result = await verifySourcify(
+          address, 
+          chainId.toString(), 
+          contractPath,
+          contractName, 
+          hre
+        );
+        
+        if (result.status === "perfect") {
+          console.log("✓ Contract verified successfully (perfect match)");
+        } else if (result.status === "partial") {
+          console.log("✓ Contract verified successfully (partial match)");
+        } else {
+          console.error(`✗ Verification failed: ${result.message}`);
+        }
       }
       
       const net =
@@ -227,15 +333,13 @@ const hashscanVerifyTask = task(
           case "mainnet":
           case "testnet":
           case "previewnet":
-            console.log(`\nView on HashScan: https://hashscan.io/${net}/contract/${address}\n`);
+            console.log(`\nView on HashScan: https://hashscan.io/${net}/contract/${address}`);
             break;
           case "local":
-            console.log(`\nView on HashScan: http://localhost:8080/${net}/contract/${address}\n`);
+            console.log(`\nView on HashScan: http://localhost:8080/${net}/contract/${address}`);
             break;
           default:
-            console.log(
-              "\nVerified via Sourcify. (Unknown chainId; cannot build HashScan URL)\n",
-            );
+            console.log(`\nChain ID ${chainId} is not a recognized Hedera network.`);
         }
     },
   }));
@@ -279,10 +383,17 @@ async function resolveUserConfig(
   const maybeTag = (n: string, id: number) => {
     if (nets[n] && nets[n].chainId == null) nets[n].chainId = id;
   };
+  
+  // Support both old hedera_* names and new simplified names
   maybeTag("hedera_mainnet", 295);
   maybeTag("hedera_testnet", 296);
   maybeTag("hedera_previewnet", 297);
   maybeTag("hedera_local", 298);
+  
+  maybeTag("mainnet", 295);
+  maybeTag("testnet", 296);
+  maybeTag("previewnet", 297);
+  maybeTag("local", 298);
 
   return resolved;
 }

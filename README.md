@@ -1,16 +1,18 @@
 
 # hardhat-hashscan-verify
 
-A tiny wrapper around `@nomicfoundation/hardhat-verify` that **preconfigures Sourcify** to point at **HashScan's** Hedera verifier and adds a convenience task `hashscan-verify` that prints the correct HashScan link.
+A Hardhat plugin for verifying smart contracts on HashScan (Hedera's Sourcify-based contract verification service).
 
 - Works for **Hedera Mainnet (295), Testnet (296), Previewnet (297) and Local (298)**
-- No API key needed (Sourcify-style verification)
-- Leverages the official Hardhat Verify plugin under the hood
+- No API key needed
+- Direct integration with HashScan's Sourcify API
+- Automatic contract verification status checking
+- Clean error messages
 
 ## Install
 
 ```bash
-npm i -D hardhat-hashscan-verify @nomicfoundation/hardhat-verify
+npm i -D hardhat-hashscan-verify
 ```
 
 ## Usage
@@ -19,42 +21,78 @@ In your `hardhat.config.ts`:
 
 ```ts
 import { defineConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-verify";
-import "hardhat-hashscan-verify";
+import hardhatHashscanVerify from "hardhat-hashscan-verify";
 
 export default defineConfig({
+  plugins: [hardhatHashscanVerify],
   networks: {
-    hedera_mainnet:   { url: "https://mainnet.hashio.io/api",   chainId: 295 },
-    hedera_testnet:   { url: "https://testnet.hashio.io/api",   chainId: 296 },
-    hedera_previewnet:{ url: "https://previewnet.hashio.io/api",chainId: 297 },
-    hedera_local:{ url: "http://localhost:7546", chainId: 298 },
+    mainnet:     { url: "https://mainnet.hashio.io/api" },
+    testnet:     { url: "https://testnet.hashio.io/api" },
+    previewnet:  { url: "https://previewnet.hashio.io/api" },
+    local:       { url: "http://localhost:7546" },
   },
-  // You can still override verify.sourcify here, but defaults are set for HashScan.
 });
 ```
 
+Note: The plugin automatically sets the correct chain IDs for Hedera networks.
+
 ### Verify a contract
 
-Use the stock verify task:
-
 ```bash
-npx hardhat verify --network hedera_testnet 0xYourContractAddress   --contract contracts/MyContract.sol:MyContract
+npx hardhat hashscan-verify 0xYourContractAddress --contract contracts/MyContract.sol:MyContract --network testnet
 ```
 
-Or use the wrapper task (prints the HashScan URL):
+## Features
+
+### Automatic Verification Status Check
+The plugin checks if your contract is already verified before attempting verification:
 
 ```bash
-npx hardhat hashscan-verify --network hedera_testnet   --address 0xYourContractAddress   --contract contracts/MyContract.sol:MyContract
+$ npx hardhat hashscan-verify 0x... --contract contracts/Counter.sol:Counter --network testnet
+Contract is already verified with perfect match.
+
+View on HashScan: https://hashscan.io/testnet/contract/0x...
 ```
 
-### Notes
+### Clean Error Messages
+Meaningful error handling with helpful suggestions:
 
-- Prefer the fully-qualified name (FQN) `contracts/File.sol:ContractName` to disambiguate.
-- If you have constructor args, pass them positionally or via `--constructor-args path/to/args.js`.
-- On Hedera Testnet/Previewnet, verifications are wiped on periodic resets—just re-run verify after redeploy.
-- Foundry users: no wrapper needed. Use:
+- Invalid contract address format
+- Contract not found in artifacts
+- Missing build info (suggests recompilation)
+- Network connection issues
+
+### Network Support
+Supports both legacy `hedera_*` and simplified network names:
+- `mainnet` or `hedera_mainnet` (Chain ID: 295)
+- `testnet` or `hedera_testnet` (Chain ID: 296)  
+- `previewnet` or `hedera_previewnet` (Chain ID: 297)
+- `local` or `hedera_local` (Chain ID: 298)
+
+### Environment Variables
+- `HASHSCAN_API_URL` or `SOURCIFY_API_URL` - Override the API endpoint (defaults to HashScan's Sourcify)
+
+## Examples
+
+### Basic Verification
+```bash
+npx hardhat hashscan-verify 0x7A0505Eb4af57Eefb9B69619DB3bfc26348DE73A --contract contracts/Counter.sol:Counter --network testnet
+```
+
+### With Constructor Arguments
+```bash
+npx hardhat hashscan-verify 0x... --contract contracts/Token.sol:MyToken "My Token" "MTK" 1000000 --network mainnet
+```
+
+## Notes
+
+- On Hedera Testnet/Previewnet, verifications are wiped on periodic resets—just re-run verify after redeploy
+- Foundry users: no wrapper needed. Use forge directly with HashScan's Sourcify:
   ```bash
-  forge verify-contract --chain-id 296     --verifier sourcify --verifier-url https://server-verify/hashscan.io     <ADDRESS> src/MyContract.sol:ContractName
+  forge verify-contract --chain-id 296 \
+    --verifier sourcify \
+    --verifier-url https://server-verify.hashscan.io \
+    <ADDRESS> src/MyContract.sol:ContractName
   ```
 
 ## Development
