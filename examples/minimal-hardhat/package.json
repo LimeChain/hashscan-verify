@@ -13,11 +13,9 @@
     "@nomicfoundation/hardhat-ignition-ethers": "^3.0.3",
     "@nomicfoundation/hardhat-ignition-viem": "^3.0.3",
     "@nomicfoundation/hardhat-verify": "^3.0.0",
+    "hardhat-hashscan-verify": "file:../..",
     "hardhat": "^3.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0"
-  },
-  "dependencies": {
-    "hardhat-hashscan-verify": "file:../.."
   }
 }

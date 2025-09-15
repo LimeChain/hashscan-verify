@@ -8,6 +8,150 @@ import type {
   ConfigurationVariableResolver,
 } from "hardhat/types/config";
 import "hardhat/types/tasks";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+import https from "https";
+import { URL } from "url";
+
+// Helper function to make HTTPS request
+function httpsRequest(url: string, options: any, data: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, options, (res) => {
+      let responseData = '';
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(responseData));
+        } catch (e) {
+          resolve(responseData);
+        }
+      });
+    });
+    
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+// Function to directly verify on Sourcify
+async function verifySourcify(
+  address: string,
+  chainId: string,
+  contractName: string,
+  hre: HardhatRuntimeEnvironment
+): Promise<{ status: string; message?: string }> {
+  try {
+    // Get the contract artifact path
+    const artifactPath = join(
+      hre.config.paths.artifacts,
+      "contracts",
+      `${contractName}.sol`,
+      `${contractName}.json`
+    );
+
+    if (!existsSync(artifactPath)) {
+      throw new Error(`Artifact not found: ${artifactPath}`);
+    }
+
+    // Read the artifact
+    const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
+    
+    // Get the build info
+    const buildInfoPath = join(
+      hre.config.paths.artifacts,
+      "build-info",
+      `${artifact.buildInfoId}.output.json`
+    );
+
+    if (!existsSync(buildInfoPath)) {
+      throw new Error(`Build info not found: ${buildInfoPath}`);
+    }
+
+    // Read the build info
+    const buildInfo = JSON.parse(readFileSync(buildInfoPath, 'utf8'));
+    const contractPath = `project/contracts/${contractName}.sol`;
+    const contractData = buildInfo.output.contracts[contractPath]?.[contractName];
+    
+    if (!contractData) {
+      throw new Error(`Contract ${contractName} not found in build info`);
+    }
+
+    // Prepare the files for verification
+    const files: Record<string, string> = {};
+    
+    // Add metadata
+    files["metadata.json"] = contractData.metadata;
+    
+    // Add source files
+    Object.entries(buildInfo.output.sources).forEach(([path, _]: [string, any]) => {
+      const normalizedPath = path.replace(/^project\//, '');
+      const sourcePath = join(hre.config.paths.root, normalizedPath);
+      if (existsSync(sourcePath)) {
+        files[normalizedPath] = readFileSync(sourcePath, 'utf8');
+      }
+    });
+
+    // Prepare the request data
+    const requestData = {
+      address,
+      chain: chainId,
+      files
+    };
+
+    const jsonData = JSON.stringify(requestData);
+    
+    // Get Sourcify API URL
+    const apiUrl = (hre.config as any).sourcify?.apiUrl || "https://server-verify.hashscan.io";
+    const parsedUrl = new URL(`${apiUrl}/verify`);
+    
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 443,
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(jsonData)
+      }
+    };
+
+    console.log(`[hardhat-hashscan-verify] Calling Sourcify API at ${apiUrl}/verify`);
+    
+    const response = await httpsRequest(parsedUrl.href, options, jsonData);
+    
+    console.log("[hardhat-hashscan-verify] Sourcify response:", JSON.stringify(response, null, 2));
+    
+    if (response.result && response.result.length > 0) {
+      const result = response.result[0];
+      return {
+        status: result.status,
+        message: result.message
+      };
+    }
+    
+    if (response.error) {
+      return {
+        status: "error",
+        message: response.error
+      };
+    }
+    
+    return {
+      status: "error",
+      message: "Unknown response from Sourcify"
+    };
+    
+  } catch (error: any) {
+    console.error("[hardhat-hashscan-verify] Error calling Sourcify:", error);
+    return {
+      status: "error",
+      message: error.message
+    };
+  }
+}
 
 const hashscanVerifyTask = task(
   "hashscan-verify",
@@ -34,17 +178,40 @@ const hashscanVerifyTask = task(
       const { address, contract, constructorArgs = [] } = args;
 
       console.log(
-        "[hardhat-hashscan-verify] Delegating to @nomicfoundation/hardhat-verify (Sourcify)",
+        "[hardhat-hashscan-verify] Using direct Sourcify API verification",
       );
 
-      await hre.tasks.getTask("verify").run({
-        address,
-        constructorArgs,
-        contract: contract || undefined,
-      });
+      // Extract contract name from the contract parameter (e.g., "contracts/Counter.sol:Counter")
+      let contractName = "Counter"; // default
+      if (contract) {
+        const parts = contract.split(":");
+        if (parts.length === 2) {
+          contractName = parts[1];
+        }
+      }
 
+      // Get chain ID
       const connection = await (hre as any).network?.connect();
-      const chainId = Number(connection?.id);
+      const chainId = connection?.networkConfig?.chainId;
+      
+      if (!chainId) {
+        console.error("[hardhat-hashscan-verify] Could not determine chain ID");
+        return;
+      }
+
+      console.log(`[hardhat-hashscan-verify] Verifying ${contractName} at ${address} on chain ${chainId}`);
+      
+      // Call Sourcify directly
+      const result = await verifySourcify(address, chainId.toString(), contractName, hre);
+      
+      if (result.status === "perfect") {
+        console.log("[hardhat-hashscan-verify] ✓ Contract verified successfully (perfect match)");
+      } else if (result.status === "partial") {
+        console.log("[hardhat-hashscan-verify] ✓ Contract verified successfully (partial match)");
+      } else {
+        console.log(`[hardhat-hashscan-verify] ✗ Verification failed: ${result.message || result.status}`);
+      }
+      
       const net =
         chainId === 295
           ? "mainnet"
@@ -79,30 +246,21 @@ async function extendUserConfig(
 ): Promise<HardhatUserConfig> {
   const nextConfig = await next(config);
 
-  const userVerify: any = (nextConfig as any).verify ?? {};
-  const userSourcify: any = userVerify.sourcify ?? {};
-
+  // Get Sourcify configuration from environment or defaults
   const hardhatNetwork = process.env.HARDHAT_NETWORK ?? "";
-  const explicitBrowserUrl = process.env.HASHSCAN_BROWSER_URL;
   const explicitApiUrl = process.env.HASHSCAN_API_URL ?? process.env.SOURCIFY_API_URL;
   const isLocalNetwork = /^(localhost|hedera_local|local)$/i.test(hardhatNetwork);
-  const computedBrowserUrl =
-    explicitBrowserUrl ?? (isLocalNetwork ? "http://localhost:8080" : "https://hashscan.io");
   const computedApiUrl =
     explicitApiUrl ?? (isLocalNetwork ? "http://localhost:8080" : "https://server-verify.hashscan.io");
 
-  const mergedVerify: any = {
-    ...(nextConfig as any).verify,
-    sourcify: {
-      enabled: userSourcify.enabled ?? true,
-      apiUrl: userSourcify.apiUrl ?? computedApiUrl,
-      browserUrl: userSourcify.browserUrl ?? computedBrowserUrl,
-    },
+  // Store Sourcify API URL in config for later use
+  const sourcifyConfig = {
+    apiUrl: computedApiUrl,
   };
 
   return {
     ...nextConfig,
-    verify: mergedVerify,
+    sourcify: sourcifyConfig,
   } as HardhatUserConfig;
 }
 
@@ -131,7 +289,7 @@ async function resolveUserConfig(
 
 const plugin: HardhatPlugin = {
   id: "hardhat-hashscan-verify",
-  dependencies: () => [import("@nomicfoundation/hardhat-verify")],
+  dependencies: () => [],
   hookHandlers: {
     config: async () => ({
       default: async () => ({

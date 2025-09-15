@@ -1,11 +1,11 @@
 
 import "@nomicfoundation/hardhat-verify";
 import "@nomicfoundation/hardhat-ethers";
-import "hardhat-hashscan-verify";
-import '@nomicfoundation/hardhat-ignition-ethers';
+import hardhatHashscanVerify from "hardhat-hashscan-verify";
 
 export default {
   solidity: "0.8.24",
+  plugins: [hardhatHashscanVerify],
   networks: {
     hedera_testnet: {
       type: "http",
