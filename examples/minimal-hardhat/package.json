@@ -2,16 +2,20 @@
   "name": "minimal-hardhat-hashscan-example",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "deploy": "hardhat run scripts/deploy.ts --network hedera_testnet",
-    "verify": "hardhat hashscan-verify --network hedera_testnet --address REPLACE_ME --contract contracts/Counter.sol:Counter"
+    "verify": "hardhat hashscan-verify --network hedera_testnet --address 0x7A0505Eb4af57Eefb9B69619DB3bfc26348DE73A --contract contracts/Counter.sol:Counter"
   },
   "devDependencies": {
-    "hardhat": "^3.0.0",
+    "@nomicfoundation/hardhat-ethers": "^4.0.1",
+    "@nomicfoundation/hardhat-ignition-ethers": "^3.0.3",
+    "@nomicfoundation/hardhat-ignition-viem": "^3.0.3",
     "@nomicfoundation/hardhat-verify": "^3.0.0",
-    "typescript": "^5.4.0",
-    "ts-node": "^10.9.2"
+    "hardhat": "^3.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
   },
   "dependencies": {
     "hardhat-hashscan-verify": "file:../.."
