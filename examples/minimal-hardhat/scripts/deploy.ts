@@ -15,14 +15,18 @@ async function main() {
   // Create signer from private key in config
   const privateKey = networkConfig.accounts?.[0];
 
-  if (!privateKey || typeof privateKey !== 'string') {
-    throw new Error("No private key found in network accounts. Please add a private key to the accounts array in hardhat.config.ts");
+  if (!privateKey || typeof privateKey !== "string") {
+    throw new Error(
+      "No private key found in network accounts. Please add a private key to the accounts array in hardhat.config.ts",
+    );
   }
 
   console.log("Private key:", privateKey.substring(0, 10) + "...");
 
-  if (privateKey.length === 42 && privateKey.startsWith('0x')) {
-    throw new Error("The value in accounts appears to be an Ethereum address, not a private key. Please replace it with a valid private key.");
+  if (privateKey.length === 42 && privateKey.startsWith("0x")) {
+    throw new Error(
+      "The value in accounts appears to be an Ethereum address, not a private key. Please replace it with a valid private key.",
+    );
   }
 
   let signer;
@@ -30,7 +34,9 @@ async function main() {
     signer = new ethersLib.Wallet(privateKey, provider);
   } catch (error) {
     console.error("Wallet creation error:", error);
-    throw new Error("Invalid private key. Please ensure it's a valid hex private key. For testing, you can generate one with: openssl rand -hex 32");
+    throw new Error(
+      "Invalid private key. Please ensure it's a valid hex private key. For testing, you can generate one with: openssl rand -hex 32",
+    );
   }
 
   console.log("Deploying contracts with account:", await signer.getAddress());
@@ -42,7 +48,7 @@ async function main() {
   const Counter = new ethersLib.ContractFactory(
     artifact.abi,
     artifact.bytecode,
-    signer
+    signer,
   );
 
   const counter = await Counter.deploy();

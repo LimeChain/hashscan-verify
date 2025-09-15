@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "deploy": "hardhat run scripts/deploy.ts --network testnet",
-    "verify": "hardhat hashscan-verify 0x7A0505Eb4af57Eefb9B69619DB3bfc26348DE73A --contract contracts/Counter.sol:Counter --network testnet"
+    "verify": "hardhat hashscan-verify 0xA4d6e4725f143146a353f32Cf42579a34B9A00E8 --contract contracts/Counter.sol:Counter --network testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.1",
