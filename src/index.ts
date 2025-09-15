@@ -100,16 +100,25 @@ async function verifySourcify(
     // Normalize contract path (remove 'contracts/' prefix if present)
     const normalizedPath = contractPath.replace(/^contracts\//, "");
 
-    // Try to find the artifact
+    // Try to find the artifact - Hardhat stores artifacts in contracts/Contract.sol/Contract.json
     const possiblePaths = [
+      // Direct path: artifacts/contracts/Counter.sol/Counter.json
       join(hre.config.paths.artifacts, contractPath, `${contractName}.json`),
+      // Alternative: artifacts/contracts/Counter/Counter.json (if user provided contracts/Counter:Counter)
+      join(
+        hre.config.paths.artifacts,
+        contractPath.replace(/\.sol$/, ""),
+        `${contractName}.json`,
+      ),
+      // Fallback: try in contracts directory directly
+      join(hre.config.paths.artifacts, "contracts", contractPath, `${contractName}.json`),
+      // Another fallback: normalize path and try
       join(
         hre.config.paths.artifacts,
         "contracts",
-        normalizedPath,
+        contractPath.replace(/^contracts\//, "").replace(/\.sol$/, ""),
         `${contractName}.json`,
       ),
-      join(hre.config.paths.artifacts, normalizedPath, `${contractName}.json`),
     ];
 
     let artifactPath: string | undefined;
@@ -121,9 +130,15 @@ async function verifySourcify(
     }
 
     if (!artifactPath) {
+      // Provide helpful debugging info
+      const artifactsDir = hre.config.paths.artifacts;
       throw new Error(
         `Could not find artifact for ${contractName}. ` +
-          `Make sure the contract is compiled and the contract path is correct.`,
+          `Expected artifact at: ${join(artifactsDir, contractPath, `${contractName}.json`)}\n` +
+          `Make sure:\n` +
+          `1. The contract is compiled: run 'npx hardhat compile'\n` +
+          `2. The contract path matches exactly: use format 'contracts/File.sol:ContractName'\n` +
+          `3. The contract name matches the artifact name exactly`,
       );
     }
 
@@ -298,7 +313,8 @@ const hashscanVerifyTask = task(
       }
 
       const [fullPath, name] = parts;
-      contractPath = fullPath.replace(/\.sol$/, "");
+      // Keep the .sol extension for the contract path as Hardhat uses it in artifact directory structure
+      contractPath = fullPath;
       contractName = name;
 
       // Get chain ID
