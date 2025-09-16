@@ -1,5 +1,5 @@
 
-# hardhat-hashscan-verify
+# hashscan-verify
 
 A Hardhat plugin for verifying smart contracts on HashScan (Hedera's Sourcify-based contract verification service).
 
@@ -12,7 +12,7 @@ A Hardhat plugin for verifying smart contracts on HashScan (Hedera's Sourcify-ba
 ## Install
 
 ```bash
-npm i -D hardhat-hashscan-verify
+npm i -D hashscan-verify
 ```
 
 ## Usage
@@ -21,10 +21,10 @@ In your `hardhat.config.ts`:
 
 ```ts
 import { defineConfig } from "hardhat/config";
-import hardhatHashscanVerify from "hardhat-hashscan-verify";
+import hashscanVerify from "hashscan-verify";
 
 export default defineConfig({
-  plugins: [hardhatHashscanVerify],
+  plugins: [hashscanVerify],
   networks: {
     mainnet:     { url: "https://mainnet.hashio.io/api" },
     testnet:     { url: "https://testnet.hashio.io/api" },

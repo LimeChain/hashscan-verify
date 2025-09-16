@@ -1,10 +1,10 @@
 {
-  "name": "hardhat-hashscan-verify",
+  "name": "hashscan-verify",
   "version": "0.1.0",
   "description": "Hardhat plugin for verifying smart contracts on HashScan (Hedera's contract verification service)",
   "license": "MIT",
   "author": "LimeChain",
-  "repository": "https://github.com/LimeChain/hardhat-hashscan-verify",
+  "repository": "https://github.com/LimeChain/hashscan-verify",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
