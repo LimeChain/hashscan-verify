@@ -453,7 +453,7 @@ async function resolveUserConfig(
 }
 
 const plugin: HardhatPlugin = {
-  id: "hardhat-hashscan-verify",
+  id: "hashscan-verify",
   dependencies: () => [],
   hookHandlers: {
     config: async () => ({
