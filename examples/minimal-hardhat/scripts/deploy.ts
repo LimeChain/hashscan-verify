@@ -4,7 +4,7 @@ import hre from "hardhat";
 
 async function main() {
   // Get network configuration directly from user config (not resolved config)
-  const networkConfig = hre.userConfig.networks?.hedera_testnet as any;
+  const networkConfig = hre.userConfig.networks?.testnet as any;
   if (!networkConfig || !networkConfig.url) {
     throw new Error("Network configuration not found");
   }
