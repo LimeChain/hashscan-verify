@@ -6,11 +6,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "deploy": "hardhat run scripts/deploy.ts --network testnet",
-    "verify": "hardhat hashscan-verify 0x2246b18ae217d1E237e8F8A0F9B9BD8B88A2A6eA --contract contracts/Counter.sol:Counter --network testnet"
+    "verify": "hardhat hashscan-verify 0xYOUR_CONTRACT_ADDRESS --contract contracts/Counter.sol:Counter --network testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.1",
-    "hashscan-verify": "file:../..",
+    "hashscan-verify": "^0.1.0",
     "hardhat": "^3.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0"

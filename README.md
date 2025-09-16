@@ -1,6 +1,11 @@
 
 # hashscan-verify
 
+[![npm version](https://badge.fury.io/js/hashscan-verify.svg)](https://badge.fury.io/js/hashscan-verify)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9.2-blue.svg)
+![Hardhat](https://img.shields.io/badge/Hardhat-3.0+-green.svg)
+
 A Hardhat plugin for verifying smart contracts on HashScan (Hedera's Sourcify-based contract verification service).
 
 - Works for **Hedera Mainnet (295), Testnet (296), Previewnet (297) and Local (298)**
